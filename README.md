@@ -5,3 +5,7 @@ A demo application written in Go to monitor bandwidth transferred across all the
 - The monitoring part is implemented using [gopsutil](https://github.com/shirou/gopsutil).
 - And I used [color](github.com/fatih/color) for colorized logs.
 - Tested on Windows.
+
+<p align="center">
+  <img src="https://i.imgur.com/RrJNtlE.png" style="zoom:50%; alt='Logging Preview'" />
+</p>
