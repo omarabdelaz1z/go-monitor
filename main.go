@@ -90,7 +90,6 @@ func ByteRepr(bytes uint64) string {
 }
 
 func main() {
-
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
@@ -120,8 +119,8 @@ func main() {
 			PrettyStat(delta)
 
 			total.Incr(delta)
-
 			lastNetStat = currentNetStat
+
 			time.Sleep(delay)
 		}
 	}
