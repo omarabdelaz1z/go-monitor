@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -89,6 +91,19 @@ func ByteRepr(bytes uint64) string {
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "kM"[exp])
 }
 
+func Cls() {
+	switch runtime.GOOS {
+	case "windows":
+		cmd := exec.Command("cmd", "/c", "cls")
+		cmd.Stdout = os.Stdout
+		cmd.Run()
+	default:
+		cmd := exec.Command("clear")
+		cmd.Stdout = os.Stdout
+		cmd.Run()
+	}
+}
+
 func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -96,7 +111,9 @@ func main() {
 	go func() {
 		<-sig
 
-		fmt.Print("Captured: \n")
+		Cls()
+
+		fmt.Print("Capture:\n")
 		PrettyStat(total)
 		os.Exit(0)
 	}()
@@ -116,6 +133,7 @@ func main() {
 			currentNetStat := NewNetStat(stats[0].BytesSent, stats[0].BytesRecv)
 			delta := currentNetStat.Delta(lastNetStat)
 
+			Cls()
 			PrettyStat(delta)
 
 			total.Incr(delta)
