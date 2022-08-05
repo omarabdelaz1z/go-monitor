@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -14,9 +12,13 @@ import (
 	"github.com/shirou/gopsutil/v3/net"
 )
 
+const (
+	DELAY         time.Duration = 1 * time.Second
+	PREVIOUS_LINE string        = "\033[1A\033[K"
+)
+
 var (
-	delay time.Duration = 1 * time.Second
-	total *NetStat      = &NetStat{
+	total *NetStat = &NetStat{
 		bytesSent:  0,
 		bytesRecv:  0,
 		bytesTotal: 0,
@@ -91,19 +93,6 @@ func ByteRepr(bytes uint64) string {
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "kM"[exp])
 }
 
-func Cls() {
-	switch runtime.GOOS {
-	case "windows":
-		cmd := exec.Command("cmd", "/c", "cls")
-		cmd.Stdout = os.Stdout
-		cmd.Run()
-	default:
-		cmd := exec.Command("clear")
-		cmd.Stdout = os.Stdout
-		cmd.Run()
-	}
-}
-
 func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -111,7 +100,7 @@ func main() {
 	go func() {
 		<-sig
 
-		Cls()
+		fmt.Print(PREVIOUS_LINE)
 
 		fmt.Print("Capture:\n")
 		PrettyStat(total)
@@ -133,13 +122,13 @@ func main() {
 			currentNetStat := NewNetStat(stats[0].BytesSent, stats[0].BytesRecv)
 			delta := currentNetStat.Delta(lastNetStat)
 
-			Cls()
+			fmt.Print(PREVIOUS_LINE)
 			PrettyStat(delta)
 
 			total.Incr(delta)
 			lastNetStat = currentNetStat
 
-			time.Sleep(delay)
+			time.Sleep(DELAY)
 		}
 	}
 }
