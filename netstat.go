@@ -6,18 +6,21 @@ import (
 	"github.com/omarabdelaz1z/go-monitor/util"
 )
 
+// A Netstat represents a network statistics snapshot.
 type NetStat struct {
 	bytesSent  uint64
 	bytesRecv  uint64
 	bytesTotal uint64
 }
 
+// Increment the current netstat by the other netstat.
 func (netStat *NetStat) Incr(new *NetStat) {
 	netStat.bytesRecv += new.bytesRecv
 	netStat.bytesSent += new.bytesSent
 	netStat.bytesTotal += new.bytesTotal
 }
 
+// A netstat of the delta between the current netstat and the other netstat.
 func (current *NetStat) Delta(previous *NetStat) *NetStat {
 	return &NetStat{
 		bytesSent:  current.bytesSent - previous.bytesSent,
@@ -26,6 +29,7 @@ func (current *NetStat) Delta(previous *NetStat) *NetStat {
 	}
 }
 
+// Create a new netstat.
 func NewNetStat(sent uint64, recv uint64) *NetStat {
 	return &NetStat{
 		bytesSent:  sent,
@@ -34,6 +38,7 @@ func NewNetStat(sent uint64, recv uint64) *NetStat {
 	}
 }
 
+// Formatted string representation of the netstat.
 func (netStat *NetStat) String() string {
 	sent := util.ByteCountSI(netStat.bytesSent)
 	recv := util.ByteCountSI(netStat.bytesRecv)
