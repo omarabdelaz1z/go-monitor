@@ -1,4 +1,4 @@
-package main
+package monitoor
 
 import (
 	"fmt"
@@ -8,41 +8,32 @@ import (
 
 // A Netstat represents a network statistics snapshot.
 type NetStat struct {
-	bytesSent  uint64
-	bytesRecv  uint64
-	bytesTotal uint64
+	BytesSent  uint64
+	BytesRecv  uint64
+	BytesTotal uint64
 }
 
 // Increment the current netstat by the other netstat.
 func (netStat *NetStat) Incr(new *NetStat) {
-	netStat.bytesRecv += new.bytesRecv
-	netStat.bytesSent += new.bytesSent
-	netStat.bytesTotal += new.bytesTotal
+	netStat.BytesRecv += new.BytesRecv
+	netStat.BytesSent += new.BytesSent
+	netStat.BytesTotal += new.BytesTotal
 }
 
 // A netstat of the delta between the current netstat and the other netstat.
 func (current *NetStat) Delta(previous *NetStat) *NetStat {
 	return &NetStat{
-		bytesSent:  current.bytesSent - previous.bytesSent,
-		bytesRecv:  current.bytesRecv - previous.bytesRecv,
-		bytesTotal: current.bytesTotal - previous.bytesTotal,
-	}
-}
-
-// Create a new netstat.
-func NewNetStat(sent uint64, recv uint64) *NetStat {
-	return &NetStat{
-		bytesSent:  sent,
-		bytesRecv:  recv,
-		bytesTotal: sent + recv,
+		BytesSent:  current.BytesSent - previous.BytesSent,
+		BytesRecv:  current.BytesRecv - previous.BytesRecv,
+		BytesTotal: current.BytesTotal - previous.BytesTotal,
 	}
 }
 
 // Formatted string representation of the netstat.
 func (netStat *NetStat) String() string {
-	sent := util.ByteCountSI(netStat.bytesSent)
-	recv := util.ByteCountSI(netStat.bytesRecv)
-	total := util.ByteCountSI(netStat.bytesTotal)
+	sent := util.ByteCountSI(netStat.BytesSent)
+	recv := util.ByteCountSI(netStat.BytesRecv)
+	total := util.ByteCountSI(netStat.BytesTotal)
 
 	return fmt.Sprintf("%s %s %s",
 		util.UploadTextFunc("upload: %s", util.RateTextFunc(sent)),
