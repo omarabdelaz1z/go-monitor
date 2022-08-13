@@ -8,8 +8,16 @@ import (
 	"syscall"
 	"time"
 
+	m "github.com/omarabdelaz1z/go-monitor/monitoor"
 	"github.com/omarabdelaz1z/go-monitor/util"
-	"github.com/shirou/gopsutil/v3/net"
+)
+
+var (
+	cumulativeStat *m.NetStat = &m.NetStat{
+		BytesSent:  0,
+		BytesRecv:  0,
+		BytesTotal: 0,
+	}
 )
 
 const (
@@ -17,21 +25,16 @@ const (
 	PREVIOUS_LINE string = "\033[1A\033[K" // hacky way to clear the previous line.
 )
 
-var (
-	logger         *log.Logger = log.New(os.Stdout, fmt.Sprintf("[%s] ", time.Now().Format(time.RFC822)), 0)
-	cumulativeStat *NetStat    = NewNetStat(0, 0)
-)
-
-func PrintStat(schan <-chan *NetStat, quit <-chan bool) {
+func DisplayStat(schan <-chan *m.NetStat, quit <-chan bool) {
 	for {
 		select {
 		case <-quit:
 			return
 		case stat, ok := <-schan:
 			if ok {
-				cumulative := util.ByteCountSI(cumulativeStat.bytesTotal)
+				cumulative := util.ByteCountSI(cumulativeStat.BytesTotal)
 
-				logger.Printf(
+				log.Printf(
 					"%s %s\n",
 					stat,
 					util.CumulativeTextFunc("cumulative: %s", util.RateTextFunc(cumulative)),
@@ -41,34 +44,31 @@ func PrintStat(schan <-chan *NetStat, quit <-chan bool) {
 	}
 }
 
-func CaptureStat(buffer chan<- *NetStat, quit <-chan bool) {
-	stats, err := net.IOCounters(false)
+func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
+	lastStat, err := m.Brief()
 
 	if err != nil {
-		logger.Panicf("failed to start capturing stats: %s", err)
+		quit <- true
 	}
-
-	lastStat := NewNetStat(stats[0].BytesSent, stats[0].BytesRecv)
 
 	for {
 		select {
 		case <-quit:
 			return
 		default:
-			stats, err := net.IOCounters(false)
+			netstat, err := m.Brief()
 
 			if err != nil {
-				logger.Panicf("failed to get net stats: %s", err)
+				quit <- true
 			}
 
-			netstat := NewNetStat(stats[0].BytesSent, stats[0].BytesRecv)
-
 			delta := netstat.Delta(lastStat)
+			buffer <- delta // send the delta to the display goroutine.
+
 			cumulativeStat.Incr(delta)
 
-			buffer <- delta
-
-			// replace previous stat with current stat.
+			// replace previous stat with current stat
+			// to reflect the next measurement.
 			lastStat = netstat
 
 			time.Sleep(DELAY)
@@ -87,17 +87,17 @@ func main() {
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	quit := make(chan bool, 1)
-	buffer := make(chan *NetStat)
+	buffer := make(chan *m.NetStat)
 
 	go CaptureInterrupt(sig, quit)
 	go CaptureStat(buffer, quit)
-	go PrintStat(buffer, quit)
+	go DisplayStat(buffer, quit)
 
 	<-quit
 	close(quit)
 	close(buffer)
 	close(sig)
 
-	fmt.Print("Captured: \n")
-	logger.Print(cumulativeStat)
+	fmt.Println("Captured: ")
+	log.Print(cumulativeStat)
 }
