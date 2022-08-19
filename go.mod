@@ -6,6 +6,7 @@ require github.com/fatih/color v1.13.0
 
 require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/mattn/go-sqlite3 v1.14.15 // direct
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 )
