@@ -8,9 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	"database/sql"
-
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/omarabdelaz1z/go-monitor/model"
 	m "github.com/omarabdelaz1z/go-monitor/monitoor"
 	"github.com/omarabdelaz1z/go-monitor/util"
 )
@@ -21,7 +19,6 @@ var (
 		BytesRecv:  0,
 		BytesTotal: 0,
 	}
-	Db *sql.DB
 )
 
 const (
@@ -53,21 +50,11 @@ func DisplayStat(schan <-chan *m.NetStat, quit <-chan bool) {
 	}
 }
 
-func InsertStat(stat *m.NetStat) {
-	Db.Exec(
-		"INSERT INTO stats (timestamp, sent, received, total) VALUES (?, ?, ?, ?)",
-		time.Now().Unix(),
-		stat.BytesSent,
-		stat.BytesRecv,
-		stat.BytesTotal,
-	)
-}
-
 func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
 	lastStat, err := m.Brief()
 
 	var (
-		current  = time.Now().Unix()
+		t0       = time.Now().Unix()
 		periodic = &m.NetStat{
 			BytesSent:  0,
 			BytesRecv:  0,
@@ -93,14 +80,21 @@ func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
 			delta := netstat.Delta(lastStat)
 			buffer <- delta // send the delta to the display goroutine.
 
-			if time.Now().Unix()-current >= PERIOD {
-				InsertStat(periodic)
+			t1 := time.Now().Unix()
+
+			if t1-t0 >= PERIOD {
+				t0 = t1
+
+				model.Insert(&model.Snapshot{
+					Timestamp: t1,
+					Sent:      periodic.BytesSent,
+					Received:  periodic.BytesRecv,
+					Total:     periodic.BytesTotal,
+				})
 
 				periodic.BytesSent = 0
 				periodic.BytesRecv = 0
 				periodic.BytesTotal = 0
-
-				current = time.Now().Unix()
 			}
 
 			periodic.Incr(delta)
@@ -128,13 +122,11 @@ func main() {
 	quit := make(chan bool, 1)
 	buffer := make(chan *m.NetStat)
 
-	db, err := sql.Open(DB_DRIVER, DB_DATASOURCE)
+	err := model.InitDb(DB_DRIVER, DB_DATASOURCE)
 
 	if err != nil {
 		quit <- true
 	}
-
-	Db = db
 
 	go CaptureInterrupt(sig, quit)
 	go CaptureStat(buffer, quit)
