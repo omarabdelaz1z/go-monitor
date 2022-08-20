@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/omarabdelaz1z/go-monitor/model"
 	m "github.com/omarabdelaz1z/go-monitor/monitoor"
 	"github.com/omarabdelaz1z/go-monitor/util"
 )
@@ -23,6 +24,11 @@ var (
 const (
 	DELAY                = 1 * time.Second
 	PREVIOUS_LINE string = "\033[1A\033[K" // hacky way to clear the previous line.
+
+	PERIOD int64 = 1 * 60 * 60 // 1 hour
+
+	DB_DATASOURCE string = "monitor.db"
+	DB_DRIVER     string = "sqlite3"
 )
 
 func DisplayStat(schan <-chan *m.NetStat, quit <-chan bool) {
@@ -47,6 +53,15 @@ func DisplayStat(schan <-chan *m.NetStat, quit <-chan bool) {
 func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
 	lastStat, err := m.Brief()
 
+	var (
+		t0       = time.Now().Unix()
+		periodic = &m.NetStat{
+			BytesSent:  0,
+			BytesRecv:  0,
+			BytesTotal: 0,
+		}
+	)
+
 	if err != nil {
 		quit <- true
 	}
@@ -65,6 +80,24 @@ func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
 			delta := netstat.Delta(lastStat)
 			buffer <- delta // send the delta to the display goroutine.
 
+			t1 := time.Now().Unix()
+
+			if t1-t0 >= PERIOD {
+				t0 = t1
+
+				model.Insert(&model.Snapshot{
+					Timestamp: t1,
+					Sent:      periodic.BytesSent,
+					Received:  periodic.BytesRecv,
+					Total:     periodic.BytesTotal,
+				})
+
+				periodic.BytesSent = 0
+				periodic.BytesRecv = 0
+				periodic.BytesTotal = 0
+			}
+
+			periodic.Incr(delta)
 			cumulativeStat.Incr(delta)
 
 			// replace previous stat with current stat
@@ -88,6 +121,12 @@ func main() {
 
 	quit := make(chan bool, 1)
 	buffer := make(chan *m.NetStat)
+
+	err := model.InitDb(DB_DRIVER, DB_DATASOURCE)
+
+	if err != nil {
+		quit <- true
+	}
 
 	go CaptureInterrupt(sig, quit)
 	go CaptureStat(buffer, quit)
