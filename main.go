@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -14,7 +15,14 @@ import (
 )
 
 var (
+	mu sync.RWMutex
+
 	cumulativeStat *m.NetStat = &m.NetStat{
+		BytesSent:  0,
+		BytesRecv:  0,
+		BytesTotal: 0,
+	}
+	periodicStat *m.NetStat = &m.NetStat{
 		BytesSent:  0,
 		BytesRecv:  0,
 		BytesTotal: 0,
@@ -22,23 +30,27 @@ var (
 )
 
 const (
-	DELAY                = 1 * time.Second
+	DELAY  time.Duration = 1 * time.Second
+	PERIOD time.Duration = 1 * time.Hour
+
+	DSN    string = "monitor.db"
+	DRIVER string = "sqlite3"
+
 	PREVIOUS_LINE string = "\033[1A\033[K" // hacky way to clear the previous line.
-
-	PERIOD int64 = 1 * 60 * 60 // 1 hour
-
-	DB_DATASOURCE string = "monitor.db"
-	DB_DRIVER     string = "sqlite3"
 )
 
-func DisplayStat(schan <-chan *m.NetStat, quit <-chan bool) {
+func Display(schan <-chan *m.NetStat, quit <-chan bool) {
 	for {
 		select {
 		case <-quit:
 			return
 		case stat, ok := <-schan:
 			if ok {
-				cumulative := util.ByteCountSI(cumulativeStat.BytesTotal)
+				mu.RLock()
+				currentTotal := cumulativeStat.BytesTotal
+				mu.RUnlock()
+
+				cumulative := util.ByteCountSI(currentTotal)
 
 				log.Printf(
 					"%s %s\n",
@@ -50,17 +62,9 @@ func DisplayStat(schan <-chan *m.NetStat, quit <-chan bool) {
 	}
 }
 
-func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
+// TODO: a side effect resulted from fmt.Print.
+func Monitor(buffer chan<- *m.NetStat, quit chan bool) {
 	lastStat, err := m.Brief()
-
-	var (
-		t0       = time.Now().Unix()
-		periodic = &m.NetStat{
-			BytesSent:  0,
-			BytesRecv:  0,
-			BytesTotal: 0,
-		}
-	)
 
 	if err != nil {
 		quit <- true
@@ -80,29 +84,14 @@ func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
 			delta := netstat.Delta(lastStat)
 			buffer <- delta // send the delta to the display goroutine.
 
-			t1 := time.Now().Unix()
+			mu.Lock()
 
-			if t1-t0 >= PERIOD {
-				t0 = t1
-
-				model.Insert(&model.Snapshot{
-					Timestamp: t1,
-					Sent:      periodic.BytesSent,
-					Received:  periodic.BytesRecv,
-					Total:     periodic.BytesTotal,
-				})
-
-				periodic.BytesSent = 0
-				periodic.BytesRecv = 0
-				periodic.BytesTotal = 0
-			}
-
-			periodic.Incr(delta)
+			periodicStat.Incr(delta)
 			cumulativeStat.Incr(delta)
 
-			// replace previous stat with current stat
-			// to reflect the next measurement.
-			lastStat = netstat
+			mu.Unlock()
+
+			lastStat = netstat // record the next stat.
 
 			time.Sleep(DELAY)
 			fmt.Print(PREVIOUS_LINE)
@@ -110,33 +99,71 @@ func CaptureStat(buffer chan<- *m.NetStat, quit chan bool) {
 	}
 }
 
-func CaptureInterrupt(sig <-chan os.Signal, quit chan<- bool) {
-	<-sig
+// TODO: the function does two things.
+func Persist(ticker *time.Ticker, quit <-chan bool) {
+	for {
+		select {
+		case <-ticker.C:
+			mu.RLock()
+
+			model.Insert(&model.Snapshot{
+				Timestamp: time.Now().Unix(),
+				Sent:      periodicStat.BytesSent,
+				Received:  periodicStat.BytesRecv,
+				Total:     periodicStat.BytesTotal,
+			})
+
+			mu.RUnlock()
+
+			mu.Lock()
+
+			periodicStat.BytesSent = 0
+			periodicStat.BytesRecv = 0
+			periodicStat.BytesTotal = 0
+
+			mu.Unlock()
+
+		case <-quit:
+			ticker.Stop()
+			return
+		}
+	}
+}
+
+func Shutdown(signals <-chan os.Signal, quit chan<- bool) {
+	<-signals
 	quit <- true
 }
 
 func main() {
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
-	quit := make(chan bool, 1)
 	buffer := make(chan *m.NetStat)
 
-	err := model.InitDb(DB_DRIVER, DB_DATASOURCE)
+	quit := make(chan bool)
+
+	err := model.InitDb(DRIVER, DSN)
 
 	if err != nil {
 		quit <- true
 	}
 
-	go CaptureInterrupt(sig, quit)
-	go CaptureStat(buffer, quit)
-	go DisplayStat(buffer, quit)
+	ticker := time.NewTicker(PERIOD)
+
+	go Monitor(buffer, quit)
+	go Display(buffer, quit)
+	go Persist(ticker, quit)
+	go Shutdown(signals, quit)
 
 	<-quit
-	close(quit)
-	close(buffer)
-	close(sig)
 
-	fmt.Println("Captured: ")
+	defer func() {
+		close(quit)
+		close(buffer)
+		close(signals)
+	}()
+
+	fmt.Println("\ncaptured: ")
 	log.Print(cumulativeStat)
 }
