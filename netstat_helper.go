@@ -1,28 +1,24 @@
-package monitoor
+package main
 
 import (
 	"fmt"
 
+	m "github.com/omarabdelaz1z/go-monitor/pkg/monitoor"
 	"github.com/omarabdelaz1z/go-monitor/util"
 )
 
-// A Netstat represents a network statistics snapshot.
-type NetStat struct {
-	BytesSent  uint64
-	BytesRecv  uint64
-	BytesTotal uint64
-}
-
 // Increment the current netstat by the other netstat.
-func (netStat *NetStat) Incr(new *NetStat) {
-	netStat.BytesRecv += new.BytesRecv
-	netStat.BytesSent += new.BytesSent
-	netStat.BytesTotal += new.BytesTotal
+func Incr(current, new *m.NetStat) *m.NetStat {
+	return &m.NetStat{
+		BytesSent:  current.BytesSent + new.BytesSent,
+		BytesRecv:  current.BytesRecv + new.BytesRecv,
+		BytesTotal: current.BytesTotal + new.BytesTotal,
+	}
 }
 
 // A netstat of the delta between the current netstat and the other netstat.
-func (current *NetStat) Delta(previous *NetStat) *NetStat {
-	return &NetStat{
+func Delta(current, previous *m.NetStat) *m.NetStat {
+	return &m.NetStat{
 		BytesSent:  current.BytesSent - previous.BytesSent,
 		BytesRecv:  current.BytesRecv - previous.BytesRecv,
 		BytesTotal: current.BytesTotal - previous.BytesTotal,
@@ -30,10 +26,10 @@ func (current *NetStat) Delta(previous *NetStat) *NetStat {
 }
 
 // Formatted string representation of the netstat.
-func (netStat *NetStat) String() string {
-	sent := util.ByteCountSI(netStat.BytesSent)
-	recv := util.ByteCountSI(netStat.BytesRecv)
-	total := util.ByteCountSI(netStat.BytesTotal)
+func Pretty(stat *m.NetStat) string {
+	sent := util.ByteCountSI(stat.BytesSent)
+	recv := util.ByteCountSI(stat.BytesRecv)
+	total := util.ByteCountSI(stat.BytesTotal)
 
 	return fmt.Sprintf("%s %s %s",
 		util.UploadTextFunc("upload: %s", util.RateTextFunc(sent)),
