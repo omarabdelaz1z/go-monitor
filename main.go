@@ -11,6 +11,8 @@ import (
 
 	"github.com/omarabdelaz1z/go-monitor/model"
 	m "github.com/omarabdelaz1z/go-monitor/pkg/monitoor"
+	"github.com/omarabdelaz1z/go-monitor/provider"
+	"github.com/omarabdelaz1z/go-monitor/service"
 	"github.com/omarabdelaz1z/go-monitor/util"
 )
 
@@ -100,13 +102,13 @@ func Monitor(buffer chan<- *m.NetStat, quit chan bool) {
 }
 
 // TODO: the function does two things.
-func Persist(ticker *time.Ticker, quit <-chan bool) {
+func Persist(service service.SnapshotService, ticker *time.Ticker, quit <-chan bool) {
 	for {
 		select {
 		case <-ticker.C:
 			mu.RLock()
 
-			model.Insert(&model.Snapshot{
+			service.Create(&model.Snapshot{
 				Timestamp: time.Now().Unix(),
 				Sent:      periodicStat.BytesSent,
 				Received:  periodicStat.BytesRecv,
@@ -143,17 +145,19 @@ func main() {
 
 	quit := make(chan bool)
 
-	err := model.InitDb(DRIVER, DSN)
+	db, err := provider.NewConnection(DRIVER, DSN)
 
 	if err != nil {
 		quit <- true
 	}
 
+	snapshotService := service.NewSnapshotService(db)
+
 	ticker := time.NewTicker(PERIOD)
 
 	go Monitor(buffer, quit)
 	go Display(buffer, quit)
-	go Persist(ticker, quit)
+	go Persist(snapshotService, ticker, quit)
 	go Shutdown(signals, quit)
 
 	<-quit
