@@ -54,7 +54,7 @@ func Display(schan <-chan *m.NetStat, quit <-chan bool) {
 
 				log.Printf(
 					"%s %s\n",
-					stat,
+					Pretty(stat),
 					util.CumulativeTextFunc("cumulative: %s", util.RateTextFunc(cumulative)),
 				)
 			}
@@ -81,13 +81,13 @@ func Monitor(buffer chan<- *m.NetStat, quit chan bool) {
 				quit <- true
 			}
 
-			delta := netstat.Delta(lastStat)
+			delta := Delta(netstat, lastStat)
 			buffer <- delta // send the delta to the display goroutine.
 
 			mu.Lock()
 
-			periodicStat.Incr(delta)
-			cumulativeStat.Incr(delta)
+			periodicStat = Incr(periodicStat, delta)
+			cumulativeStat = Incr(cumulativeStat, delta)
 
 			mu.Unlock()
 
@@ -165,5 +165,5 @@ func main() {
 	}()
 
 	fmt.Println("\ncaptured: ")
-	log.Print(cumulativeStat)
+	log.Print(Pretty(cumulativeStat))
 }

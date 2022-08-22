@@ -1,41 +1,45 @@
-package monitoor
+package main
 
-import "testing"
+import (
+	"testing"
+
+	m "github.com/omarabdelaz1z/go-monitor/monitoor"
+)
 
 func TestIncr(t *testing.T) {
-	A := &NetStat{
+	A := &m.NetStat{
 		BytesSent:  20,
 		BytesRecv:  5,
 		BytesTotal: 25,
 	}
 
-	B := &NetStat{
+	B := &m.NetStat{
 		BytesSent:  10,
 		BytesRecv:  3,
 		BytesTotal: 13,
 	}
 
-	A.Incr(B)
+	C := Incr(A, B)
 
-	if A.BytesSent != 30 || A.BytesRecv != 8 || A.BytesTotal != 38 {
+	if C.BytesSent != 30 || C.BytesRecv != 8 || C.BytesTotal != 38 {
 		t.Errorf("Incr failed")
 	}
 }
 
 func TestDelta(t *testing.T) {
-	A := &NetStat{
+	A := &m.NetStat{
 		BytesSent:  20,
 		BytesRecv:  5,
 		BytesTotal: 25,
 	}
 
-	B := &NetStat{
+	B := &m.NetStat{
 		BytesSent:  10,
 		BytesRecv:  3,
 		BytesTotal: 13,
 	}
 
-	C := A.Delta(B)
+	C := Delta(A, B)
 
 	if C.BytesSent != 10 || C.BytesRecv != 2 || C.BytesTotal != 12 {
 		t.Errorf("got: %d %d %d. %s", C.BytesSent, C.BytesRecv, C.BytesTotal, "expected: 10 3 12")
