@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	m "github.com/omarabdelaz1z/go-monitor/monitoor"
+	m "github.com/omarabdelaz1z/go-monitor/pkg/monitoor"
 )
 
 func TestIncr(t *testing.T) {

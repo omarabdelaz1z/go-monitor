@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/omarabdelaz1z/go-monitor/model"
-	m "github.com/omarabdelaz1z/go-monitor/monitoor"
+	m "github.com/omarabdelaz1z/go-monitor/pkg/monitoor"
 	"github.com/omarabdelaz1z/go-monitor/util"
 )
 
