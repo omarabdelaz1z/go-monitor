@@ -102,7 +102,7 @@ func Monitor(buffer chan<- *m.NetStat, quit chan bool) {
 }
 
 // TODO: the function does two things.
-func Persist(service service.SnapshotService, ticker *time.Ticker, quit <-chan bool) {
+func PersistTicker(service service.SnapshotService, ticker *time.Ticker, quit <-chan bool) {
 	for {
 		select {
 		case <-ticker.C:
@@ -157,7 +157,7 @@ func main() {
 
 	go Monitor(buffer, quit)
 	go Display(buffer, quit)
-	go Persist(snapshotService, ticker, quit)
+	go PersistTicker(snapshotService, ticker, quit)
 	go Shutdown(signals, quit)
 
 	<-quit
