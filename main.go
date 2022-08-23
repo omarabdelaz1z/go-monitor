@@ -110,9 +110,11 @@ func PersistTicker(service service.SnapshotService, ticker *time.Ticker, quit <-
 
 			service.Create(&model.Snapshot{
 				Timestamp: time.Now().Unix(),
-				Sent:      periodicStat.BytesSent,
-				Received:  periodicStat.BytesRecv,
-				Total:     periodicStat.BytesTotal,
+				Stat: model.Stat{
+					Sent:     periodicStat.BytesSent,
+					Received: periodicStat.BytesRecv,
+					Total:    periodicStat.BytesTotal,
+				},
 			})
 
 			mu.RUnlock()
