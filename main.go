@@ -134,40 +134,40 @@ func PersistTicker(service service.SnapshotService, ticker *time.Ticker, quit <-
 	}
 }
 
-func Shutdown(signals <-chan os.Signal, quit chan<- bool) {
-	<-signals
+func Shutdown(signalChan <-chan os.Signal, quit chan<- bool) {
+	<-signalChan
 	quit <- true
 }
 
 func main() {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
 	buffer := make(chan *m.NetStat)
 
 	quit := make(chan bool)
 
-	db, err := provider.NewConnection(DRIVER, DSN)
+	conn, err := provider.NewConnection(DRIVER, DSN)
 
 	if err != nil {
 		quit <- true
 	}
 
-	snapshotService := service.NewSnapshotService(db)
+	snapshotService := service.NewSnapshotService(conn)
 
 	ticker := time.NewTicker(PERIOD)
 
 	go Monitor(buffer, quit)
 	go Display(buffer, quit)
 	go PersistTicker(snapshotService, ticker, quit)
-	go Shutdown(signals, quit)
+	go Shutdown(signalChan, quit)
 
 	<-quit
 
 	defer func() {
 		close(quit)
 		close(buffer)
-		close(signals)
+		close(signalChan)
 	}()
 
 	fmt.Println("\ncaptured: ")

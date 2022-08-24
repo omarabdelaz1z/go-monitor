@@ -14,11 +14,11 @@ const (
 	maxConnIdleTime = 2 * time.Hour
 )
 
-type Database struct {
+type DatabaseConnection struct {
 	db *sql.DB
 }
 
-func NewConnection(driver, dsn string) (*Database, error) {
+func NewConnection(driver, dsn string) (*DatabaseConnection, error) {
 	db, err := sql.Open(driver, dsn)
 
 	if err != nil {
@@ -29,9 +29,9 @@ func NewConnection(driver, dsn string) (*Database, error) {
 	db.SetMaxOpenConns(maxOpenConns)
 	db.SetConnMaxIdleTime(maxConnIdleTime)
 
-	return &Database{db}, nil
+	return &DatabaseConnection{db}, nil
 }
 
-func (d *Database) GetDB() *sql.DB {
+func (d *DatabaseConnection) GetDB() *sql.DB {
 	return d.db
 }

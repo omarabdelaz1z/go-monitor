@@ -20,7 +20,7 @@ type snapshotService struct {
 	db *sql.DB
 }
 
-func NewSnapshotService(d *provider.Database) SnapshotService {
+func NewSnapshotService(d *provider.DatabaseConnection) SnapshotService {
 	return &snapshotService{db: d.GetDB()}
 }
 
