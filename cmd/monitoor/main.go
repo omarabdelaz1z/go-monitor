@@ -24,11 +24,12 @@ func main() {
 	db, err := NewDatabase(cfg)
 
 	if err != nil {
-		logger.Error(err, map[string]string{
+		logger.Fatal(err, map[string]string{
 			"dsn":    cfg.db.dsn,
 			"driver": cfg.db.driver,
 			"action": "connecting to database",
 		})
+		return
 	}
 
 	logger.Info("connected to database", noprops)
