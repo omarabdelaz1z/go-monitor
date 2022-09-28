@@ -34,15 +34,15 @@ func NewSnapshotModel(db *sql.DB) *SnapshotModel {
 	return &SnapshotModel{db: db}
 }
 
-func (m *SnapshotModel) Insert(s *Snapshot) error {
+func (m *SnapshotModel) Insert(ctx context.Context, s *Snapshot) error {
 	query := `INSERT INTO snapshots (timestamp, sent, received, total) VALUES (?, ?, ?, ?)`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-
+	timeout, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
+
 	args := []interface{}{s.Timestamp, s.Stat.Sent, s.Stat.Received, s.Stat.Total}
 
-	_, err := m.db.ExecContext(ctx, query, args...)
+	_, err := m.db.ExecContext(timeout, query, args...)
 
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -55,7 +55,7 @@ func (m *SnapshotModel) Insert(s *Snapshot) error {
 	return nil
 }
 
-func (m *SnapshotModel) GetStatsByMonth(month string) ([]Snapshot, error) {
+func (m *SnapshotModel) GetStatsByMonth(ctx context.Context, month string) ([]Snapshot, error) {
 	query := `SELECT 
 		strftime('%s', strftime('%Y-%m-%d', timestamp, 'unixepoch')) AS day_unix,
 		SUM(sent),
@@ -66,11 +66,11 @@ func (m *SnapshotModel) GetStatsByMonth(month string) ([]Snapshot, error) {
 	GROUP BY day_unix
 	ORDER BY day_unix DESC`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout, cancel := context.WithTimeout(ctx, 3*time.Second)
 
 	defer cancel()
 
-	rows, err := m.db.QueryContext(ctx, query, month)
+	rows, err := m.db.QueryContext(timeout, query, month)
 
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -99,20 +99,20 @@ func (m *SnapshotModel) GetStatsByMonth(month string) ([]Snapshot, error) {
 	return stats, nil
 }
 
-func (m *SnapshotModel) GetMonthStat(month string) (MonthStat, error) {
+func (m *SnapshotModel) GetMonthStat(ctx context.Context, month string) (MonthStat, error) {
 	query := `SELECT 
 		strftime('%m', timestamp, 'unixepoch') AS month, SUM(sent), SUM(received), SUM(total) 
 		FROM snapshots 
 		WHERE month = ?
 		GROUP BY month`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	timeout, cancel := context.WithTimeout(ctx, 3*time.Second)
 
 	defer cancel()
 
 	var s MonthStat
 
-	if err := m.db.QueryRowContext(ctx, query, month).Scan(&s.Month, &s.Stat.Sent, &s.Stat.Received, &s.Stat.Total); err != nil {
+	if err := m.db.QueryRowContext(timeout, query, month).Scan(&s.Month, &s.Stat.Sent, &s.Stat.Received, &s.Stat.Total); err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return s, fmt.Errorf("querying snapshot timed out %v", err)
 		}
@@ -126,18 +126,18 @@ func (m *SnapshotModel) GetMonthStat(month string) (MonthStat, error) {
 	return s, nil
 }
 
-func (m *SnapshotModel) GetAllStats() ([]Snapshot, error) {
+func (m *SnapshotModel) GetAllStats(ctx context.Context) ([]Snapshot, error) {
 	query := `SELECT 
 					strftime('%s', strftime('%Y-%m-%d', timestamp, 'unixepoch')) AS day_unix, SUM(sent), SUM(received), SUM(total)
 					FROM snapshots
 					GROUP BY day_unix
 					ORDER BY day_unix DESC`
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeout, cancel := context.WithTimeout(ctx, 5*time.Second)
 
 	defer cancel()
 
-	rows, err := m.db.QueryContext(ctx, query)
+	rows, err := m.db.QueryContext(timeout, query)
 
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {

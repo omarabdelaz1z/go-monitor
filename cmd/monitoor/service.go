@@ -164,7 +164,7 @@ func (s *Service) Capture(ctx context.Context, buffer <-chan *m.NetStat) error {
 				"timestamp": fmt.Sprint(snap.Timestamp),
 			})
 
-			s.snapshots.Insert(snap)
+			s.snapshots.Insert(ctx, snap)
 			s.mu.RUnlock()
 
 			s.mu.Lock()
