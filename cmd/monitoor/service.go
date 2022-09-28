@@ -103,7 +103,7 @@ func (s *Service) Monitor(ctx context.Context, buffer chan<- *m.NetStat) error {
 
 			s.mu.Unlock()
 
-			helper.UpdateWith(s.periodicStat, *newStat)
+			helper.UpdateWith(currentStat, *newStat)
 		}
 	}
 }
