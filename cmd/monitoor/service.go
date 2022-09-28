@@ -11,8 +11,8 @@ import (
 	"github.com/omarabdelaz1z/go-monitor/cmd/monitoor/helper"
 	"github.com/omarabdelaz1z/go-monitor/internal/logger"
 	"github.com/omarabdelaz1z/go-monitor/internal/model"
+	"github.com/omarabdelaz1z/go-monitor/internal/util"
 	m "github.com/omarabdelaz1z/go-monitor/pkg/monitoor"
-	"github.com/omarabdelaz1z/go-monitor/util"
 	"golang.org/x/sync/errgroup"
 )
 

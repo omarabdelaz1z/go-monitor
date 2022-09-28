@@ -7,12 +7,12 @@ import (
 )
 
 const (
-	ALL_INTERFACE bool = false // "all"
+	all_interface bool = false // "all"
 )
 
 // An overall network statistics at the current time.
 func Brief() (*NetStat, error) {
-	stats, err := net.IOCounters(ALL_INTERFACE)
+	stats, err := net.IOCounters(all_interface)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to capture network stat: %v", err)
