@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/omarabdelaz1z/go-monitor/cmd/provider"
 	"github.com/omarabdelaz1z/go-monitor/internal/logger"
 	"github.com/omarabdelaz1z/go-monitor/internal/model"
 	m "github.com/omarabdelaz1z/go-monitor/pkg/monitoor"
@@ -31,7 +32,13 @@ func main() {
 	})
 
 	if cfg.persist {
-		db, err = NewDatabase(cfg)
+		db, err = provider.NewDatabase(&provider.DbConfig{
+			Driver:       cfg.db.driver,
+			Dsn:          cfg.db.dsn,
+			MaxIdleConns: cfg.db.maxIdleConns,
+			MaxOpenConns: cfg.db.maxOpenConns,
+			MaxIdleTime:  cfg.db.maxIdleTime,
+		})
 
 		if err != nil {
 			logger.Fatal(err, map[string]string{
