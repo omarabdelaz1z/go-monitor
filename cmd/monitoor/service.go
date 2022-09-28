@@ -100,7 +100,7 @@ func (s *Service) Monitor(ctx context.Context, buffer chan<- *m.NetStat) error {
 			s.mu.Unlock()
 
 			s.logger.Debug("update cumulative stat", nil)
-			helper.UpdateWith(s.periodicStat, *newStat)
+			helper.UpdateWith(currentStat, *newStat)
 		}
 	}
 }
