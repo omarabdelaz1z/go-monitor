@@ -12,3 +12,7 @@ Monitoor Core
 - Goroutines with: channels, errgroup (a better waitgroup)
 - Graceful Shutdown with `os/signal`
 - Native logging with `log`
+
+<p align="center">
+  <img src="./doc/demo-run.png" style="zoom:50%; alt='Logging Preview'" />
+</p>
