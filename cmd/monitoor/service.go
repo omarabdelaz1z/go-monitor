@@ -46,10 +46,12 @@ func (s *Service) Run() error {
 		return s.Display(gCtx, buffer)
 	})
 
-	g.Go(func() error {
-		s.logger.Info("capture started", nil)
-		return s.Capture(gCtx, buffer)
-	})
+	if s.config.persist {
+		g.Go(func() error {
+			s.logger.Info("capture started", nil)
+			return s.Capture(gCtx, buffer)
+		})
+	}
 
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("service failed while running: %w", err)
@@ -91,15 +93,16 @@ func (s *Service) Monitor(ctx context.Context, buffer chan<- *m.NetStat) error {
 
 			s.mu.Lock()
 
-			s.logger.Debug("update periodicStat stat", nil)
-			helper.UpdateWith(s.periodicStat, helper.Incr(s.periodicStat, delta))
+			if s.config.persist {
+				s.logger.Debug("update periodicStat stat", nil)
+				helper.UpdateWith(s.periodicStat, helper.Incr(s.periodicStat, delta))
+			}
 
 			s.logger.Debug("update cumulative stat", nil)
 			helper.UpdateWith(s.cumulativeStat, helper.Incr(s.cumulativeStat, delta))
 
 			s.mu.Unlock()
 
-			s.logger.Debug("update cumulative stat", nil)
 			helper.UpdateWith(s.periodicStat, *newStat)
 		}
 	}

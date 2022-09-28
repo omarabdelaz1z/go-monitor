@@ -12,6 +12,7 @@ type Config struct {
 	monitorTime time.Duration
 	captureTime time.Duration
 	logLevel    int
+	persist     bool
 	db          struct {
 		driver       string
 		dsn          string
@@ -34,6 +35,7 @@ func init() {
 	flag.IntVar(&cfg.db.maxIdleTime, "max-idle-time", 2, "max idle time")
 
 	flag.IntVar(&cfg.logLevel, "log-level", INFO_LEVEL, "log level")
+	flag.BoolVar(&cfg.persist, "persist", false, "enable persistance")
 
 	flag.Parse()
 }
