@@ -1,11 +1,14 @@
-## Bandwidth Monitoring 
+## Bandwidth Monitoring
 
-A demo application written in Go to monitor bandwidth transferred across all the network interfaces on an operating system.
+A monitoring bandwidth tool implemented in Go
 
-- The monitoring part is implemented using [gopsutil](https://github.com/shirou/gopsutil).
-- And I used [color](github.com/fatih/color) for colorized logs.
-- Tested on Windows.
+- Currently monitors 'all' the network interfaces on an operating system.
+- Soon to support per-process monitoring.
 
-<p align="center">
-  <img src="https://i.imgur.com/RrJNtlE.png" style="zoom:50%; alt='Logging Preview'" />
-</p>
+Monitoor Core
+
+- Monitoring with [gopsutil](https://github.com/shirou/gopsutil).
+- Data Persistance with `sqlite3`
+- Goroutines with: channels, errgroup (a better waitgroup)
+- Graceful Shutdown with `os/signal`
+- Native logging with `log`
