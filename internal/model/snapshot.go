@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+var ErrNoRows = errors.New("no rows for requested query")
+var ErrTimedOut = errors.New("query time limit exceeded")
 
 type Stat struct {
 	Sent     uint64
@@ -18,12 +20,18 @@ type Stat struct {
 
 type Snapshot struct {
 	Timestamp int64
-	Stat      Stat
+	Stat
 }
 
 type MonthStat struct {
 	Month string
-	Stat  Stat
+	Stat
+}
+
+type DateStat struct {
+	HoursMonitored int
+	Date           string // YYYY-MM-DD
+	Stat
 }
 
 type SnapshotModel struct {
@@ -46,122 +54,11 @@ func (m *SnapshotModel) Insert(ctx context.Context, s *Snapshot) error {
 
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return fmt.Errorf("inserting snapshot timed out %v", err)
+			return ErrTimedOut
 		}
 
-		return fmt.Errorf("failed to insert snapshot: %s", err)
+		return err
 	}
 
 	return nil
-}
-
-func (m *SnapshotModel) GetStatsByMonth(ctx context.Context, month string) ([]Snapshot, error) {
-	query := `SELECT 
-		strftime('%s', strftime('%Y-%m-%d', timestamp, 'unixepoch')) AS day_unix,
-		SUM(sent),
-		SUM(received),
-		SUM(total)
-	FROM snapshots
-	WHERE strftime('%m', timestamp, 'unixepoch') = ?
-	GROUP BY day_unix
-	ORDER BY day_unix DESC`
-
-	timeout, cancel := context.WithTimeout(ctx, 3*time.Second)
-
-	defer cancel()
-
-	rows, err := m.db.QueryContext(timeout, query, month)
-
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("querying snapshots timed out %v", err)
-		}
-
-		return nil, fmt.Errorf("failed to query: %s", err)
-	}
-
-	var stats []Snapshot
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var s Snapshot
-
-		err := rows.Scan(&s.Timestamp, &s.Stat.Sent, &s.Stat.Received, &s.Stat.Total)
-
-		if err != nil {
-			return stats, fmt.Errorf("found no rows: %s", err)
-		}
-
-		stats = append(stats, s)
-	}
-
-	return stats, nil
-}
-
-func (m *SnapshotModel) GetMonthStat(ctx context.Context, month string) (MonthStat, error) {
-	query := `SELECT 
-		strftime('%m', timestamp, 'unixepoch') AS month, SUM(sent), SUM(received), SUM(total) 
-		FROM snapshots 
-		WHERE month = ?
-		GROUP BY month`
-
-	timeout, cancel := context.WithTimeout(ctx, 3*time.Second)
-
-	defer cancel()
-
-	var s MonthStat
-
-	if err := m.db.QueryRowContext(timeout, query, month).Scan(&s.Month, &s.Stat.Sent, &s.Stat.Received, &s.Stat.Total); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return s, fmt.Errorf("querying snapshot timed out %v", err)
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			return s, fmt.Errorf("found no rows: %s", err)
-		}
-
-		return s, fmt.Errorf("failed to query: %s", err)
-	}
-
-	return s, nil
-}
-
-func (m *SnapshotModel) GetAllStats(ctx context.Context) ([]Snapshot, error) {
-	query := `SELECT 
-					strftime('%s', strftime('%Y-%m-%d', timestamp, 'unixepoch')) AS day_unix, SUM(sent), SUM(received), SUM(total)
-					FROM snapshots
-					GROUP BY day_unix
-					ORDER BY day_unix DESC`
-
-	timeout, cancel := context.WithTimeout(ctx, 5*time.Second)
-
-	defer cancel()
-
-	rows, err := m.db.QueryContext(timeout, query)
-
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("querying snapshots timed out %v", err)
-		}
-
-		return nil, fmt.Errorf("failed to query: %s", err)
-	}
-
-	var stats []Snapshot
-
-	defer rows.Close()
-
-	for rows.Next() {
-		var s Snapshot
-
-		err := rows.Scan(&s.Timestamp, &s.Stat.Sent, &s.Stat.Received, &s.Stat.Total)
-
-		if err != nil {
-			return stats, fmt.Errorf("found no rows: %s", err)
-		}
-
-		stats = append(stats, s)
-	}
-
-	return stats, nil
 }
