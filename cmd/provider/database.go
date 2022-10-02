@@ -10,7 +10,8 @@ import (
 
 type DbConfig struct {
 	MaxIdleConns, MaxOpenConns, MaxIdleTime int
-	Driver, Dsn                             string
+
+	Driver, Dsn string
 }
 
 func NewDatabase(cfg *DbConfig) (*sql.DB, error) {
@@ -24,7 +25,7 @@ func NewDatabase(cfg *DbConfig) (*sql.DB, error) {
 	db.SetMaxOpenConns(cfg.MaxOpenConns)
 	db.SetConnMaxIdleTime(time.Duration(cfg.MaxIdleTime))
 
-	if err := db.Ping(); err != nil {
+	if err = db.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %s", err)
 	}
 
