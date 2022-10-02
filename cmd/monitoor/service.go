@@ -9,23 +9,22 @@ import (
 	"time"
 
 	"github.com/omarabdelaz1z/go-monitor/cmd/monitoor/helper"
-	"github.com/omarabdelaz1z/go-monitor/internal/logger"
 	"github.com/omarabdelaz1z/go-monitor/internal/model"
 	"github.com/omarabdelaz1z/go-monitor/internal/util"
 	m "github.com/omarabdelaz1z/go-monitor/pkg/monitoor"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
 
 type Service struct {
-	logger *logger.Logger
-	config *Config
-
+	config    *monitoorConfig
 	snapshots *model.SnapshotModel
+	mu        sync.RWMutex
+
+	logger zerolog.Logger
 
 	monitorTicker, captureTicker *time.Ticker
 	cumulativeStat, periodicStat *m.NetStat
-
-	mu sync.RWMutex
 }
 
 func (s *Service) Run() error {
@@ -37,18 +36,18 @@ func (s *Service) Run() error {
 	buffer := make(chan *m.NetStat)
 
 	g.Go(func() error {
-		s.logger.Info("monitor started", nil)
+		s.logger.Info().Msg("monitor goroutine launched")
 		return s.Monitor(gCtx, buffer)
 	})
 
 	g.Go(func() error {
-		s.logger.Info("display started", nil)
+		s.logger.Info().Msg("display goroutine launched")
 		return s.Display(gCtx, buffer)
 	})
 
-	if s.config.persist {
+	if s.config.allowPersist {
 		g.Go(func() error {
-			s.logger.Info("capture started", nil)
+			s.logger.Info().Msg("capture goroutine launched")
 			return s.Capture(gCtx, buffer)
 		})
 	}
@@ -67,7 +66,7 @@ func (s *Service) Monitor(ctx context.Context, buffer chan<- *m.NetStat) error {
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Info("monitor stopped", noprops)
+			s.logger.Info().Msg("monitor stopped")
 			s.monitorTicker.Stop()
 			close(buffer)
 			return nil
@@ -76,15 +75,16 @@ func (s *Service) Monitor(ctx context.Context, buffer chan<- *m.NetStat) error {
 				currentStat, err = m.Brief()
 
 				if err != nil {
-					s.logger.Warn(fmt.Sprintf("failed to get current netstat %v", err), noprops)
+					s.logger.Warn().Caller().Err(err).Msg("failed to get current stat")
 					continue // retry again
 				}
 			}
+			var newStat *m.NetStat
 
-			newStat, err := m.Brief()
+			newStat, err = m.Brief()
 
 			if err != nil {
-				s.logger.Warn(fmt.Sprintf("failed to get new netstat %v", err), noprops)
+				s.logger.Warn().Err(err).Msg("failed to get new netstat")
 				continue // retry again
 			}
 
@@ -92,15 +92,11 @@ func (s *Service) Monitor(ctx context.Context, buffer chan<- *m.NetStat) error {
 			buffer <- delta
 
 			s.mu.Lock()
-
-			if s.config.persist {
-				s.logger.Debug("update periodicStat stat", nil)
+			if s.config.allowPersist {
 				helper.UpdateWith(s.periodicStat, helper.Incr(s.periodicStat, delta))
 			}
 
-			s.logger.Debug("update cumulative stat", nil)
 			helper.UpdateWith(s.cumulativeStat, helper.Incr(s.cumulativeStat, delta))
-
 			s.mu.Unlock()
 
 			helper.UpdateWith(currentStat, *newStat)
@@ -112,12 +108,12 @@ func (s *Service) Display(ctx context.Context, buffer <-chan *m.NetStat) error {
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Info("display stopped", nil)
+			s.logger.Info().Msg("display stopped")
 			s.captureTicker.Stop()
 			return nil
 		case stat, ok := <-buffer:
 			if !ok {
-				s.logger.Info("display stopped", nil)
+				s.logger.Error().Caller().Msg("buffer channel is closed")
 				return fmt.Errorf("buffer channel is closed")
 			}
 
@@ -125,15 +121,13 @@ func (s *Service) Display(ctx context.Context, buffer <-chan *m.NetStat) error {
 			cumulative := util.ByteCountSI(s.cumulativeStat.BytesTotal)
 			s.mu.RUnlock()
 
-			s.logger.Info(
-				"monitored",
-				map[string]string{
-					"sent":       util.ByteCountSI(stat.BytesSent),
-					"received":   util.ByteCountSI(stat.BytesRecv),
-					"total":      util.ByteCountSI(stat.BytesTotal),
-					"cumulative": cumulative,
-				},
-			)
+			s.logger.Info().
+				Str("service", "display").
+				Str("sent", util.ByteCountSI(stat.BytesSent)).
+				Str("received", util.ByteCountSI(stat.BytesRecv)).
+				Str("total", util.ByteCountSI(stat.BytesTotal)).
+				Str("cumulative", cumulative).
+				Send()
 		}
 	}
 }
@@ -142,7 +136,7 @@ func (s *Service) Capture(ctx context.Context, buffer <-chan *m.NetStat) error {
 	for {
 		select {
 		case <-ctx.Done():
-			s.logger.Info("capture stopped", nil)
+			s.logger.Info().Msg("capture stopped")
 			s.captureTicker.Stop()
 			return nil
 		case <-s.captureTicker.C:
@@ -157,18 +151,25 @@ func (s *Service) Capture(ctx context.Context, buffer <-chan *m.NetStat) error {
 				},
 			}
 
-			s.logger.Debug("inserting stat into database", map[string]string{
+			s.logger.Debug().Fields(map[string]string{
 				"sent":      fmt.Sprint(snap.Stat.Sent),
 				"recv":      fmt.Sprint(snap.Stat.Received),
 				"total":     fmt.Sprint(snap.Stat.Total),
 				"timestamp": fmt.Sprint(snap.Timestamp),
-			})
+			}).Msg("persisting snapshot")
 
-			s.snapshots.Insert(ctx, snap)
+			err := s.snapshots.Insert(ctx, snap)
+
+			if err != nil {
+				s.logger.Error().Caller().Err(err)
+
+				s.mu.RUnlock()
+				continue
+			}
+
 			s.mu.RUnlock()
 
 			s.mu.Lock()
-			s.logger.Debug("reset periodic stat", nil)
 			helper.UpdateWith(s.periodicStat, m.NetStat{})
 			s.mu.Unlock()
 		}
